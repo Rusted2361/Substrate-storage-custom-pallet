@@ -16,7 +16,7 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{inherent::Vec, pallet_prelude::*, traits::Currency};
+	use frame_support::{inherent::Vec, pallet_prelude::*, traits::Currency, transactional, sp_runtime::traits::Hash, traits::ExistenceRequirement};
 	use frame_system::pallet_prelude::*;
 
 	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -215,5 +215,31 @@ pub mod pallet {
 
 				Ok(())
 		}
+			
+			#[pallet::weight(500)]
+			pub fn tip_blog_post(
+					origin: OriginFor<T>,
+					blog_post_id: T::Hash,
+					amount: <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance,
+			) -> DispatchResult {
+					let tipper = ensure_signed(origin)?;
+
+					let blog_post = Self::blog_posts(&blog_post_id).ok_or(<Error<T>>::BlogPostNotFound)?;
+					let blog_post_author = blog_post.author;
+
+					ensure!(tipper != blog_post_author, <Error<T>>::TipperIsAuthor);
+
+					T::Currency::transfer(
+							&tipper,
+							&blog_post_author,
+							amount,
+							ExistenceRequirement::KeepAlive,
+					)?;
+
+					Self::deposit_event(Event::Tipped(tipper, blog_post_id));
+
+					Ok(())
+		}
+		
 	}
 }
